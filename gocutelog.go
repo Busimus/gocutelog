@@ -99,7 +99,7 @@ func (l *LogWriter) Sync() (err error) {
 	return
 }
 
-// Close closes the connection and sets it to nil if it's not nil already.
+// Close closes the connection to cutelog.
 func (l *LogWriter) Close() (err error) {
 	if l.conn != nil {
 		err = l.conn.Close()
