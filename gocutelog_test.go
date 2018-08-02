@@ -1,62 +1,47 @@
 package gocutelog
 
 import (
+	"bytes"
+	"fmt"
+	"net"
 	"testing"
-
-	"github.com/francoispqt/onelog"
-	"github.com/rs/zerolog"
-	"github.com/sirupsen/logrus"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
-func TestZerolog(t *testing.T) {
-	w := NewWriter("localhost:19996", "json")
-	l := zerolog.New(w)
-	l.Info().Msg("Hello world from zerolog!")
-}
-
-func TestOnelog(t *testing.T) {
-	w := NewWriter("localhost:19996", "json")
-	l := onelog.New(w, onelog.ALL)
-	l.Info("Hello world from onelog!")
-}
-
-func TestLogrus(t *testing.T) {
-	w := NewWriter("localhost:19996", "json")
-	l := logrus.New()
-	l.Out = w
-	l.Formatter = new(logrus.JSONFormatter)
-	l.Info("Hello world from logrus!")
-}
-
-func TestZap(t *testing.T) {
-	w := NewWriter("localhost:19996", "json")
-	conf := zapcore.EncoderConfig{
-		TimeKey:        "time",
-		LevelKey:       "level",
-		NameKey:        "name",
-		CallerKey:      "caller",
-		MessageKey:     "msg",
-		StacktraceKey:  "exc_info",
-		LineEnding:     "",
-		EncodeLevel:    zapcore.CapitalLevelEncoder,
-		EncodeTime:     zapcore.EpochTimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
+func TestWriting(t *testing.T) {
+	cases := []struct{ len, msg []byte }{
+		{[]byte("\x00\x00\x00\x00"), []byte("")},
+		{[]byte("\x00\x00\x00\x02"), []byte("{}")},
+		{[]byte("\x00\x00\x00\x82"), []byte(`{"name": "MyServer.ReqHandler", "level": "debug", "created": 1528702099, "msg": "User registered", "username": "bob", "id": 13525}`)},
 	}
-	enc := zapcore.NewJSONEncoder(conf)
-	priority := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-		return true
-	})
-	core := zapcore.NewCore(enc, w, priority)
-	l := zap.New(core)
-	l.Info("Hello world from zap!")
-}
-
-func TestNotConnected(t *testing.T) {
-	w := NewWriter("localhost:19997", "json")
-	l := zerolog.New(w)
-	l.Info().Msg("Hello?")
-	l.Info().Msg("Anyone there?")
+	server, client := net.Pipe()
+	w := LogWriter{conn: client, Format: "json", connecting: false}
+	reader := func() {
+		var length, msg []byte
+		for _, tc := range cases {
+			length = make([]byte, len(tc.len))
+			msg = make([]byte, len(tc.msg))
+			n, err := server.Read(length)
+			if bytes.Compare(length, tc.len) != 0 || err != nil {
+				if err != nil {
+					fmt.Printf("read %d, err: \"%s\"\n", n, err.Error())
+				}
+				fmt.Printf("got:      %q\n", length)
+				fmt.Printf("expected: %q\n", tc.len)
+				t.Fail()
+			}
+			n, err = server.Read(msg)
+			if bytes.Compare(msg, tc.msg) != 0 || err != nil {
+				if err != nil {
+					fmt.Printf("read %d, err: \"%s\"\n", n, err.Error())
+				}
+				fmt.Printf("got:      %q\n", msg)
+				fmt.Printf("expected: %q\n", tc.msg)
+				t.Fail()
+			}
+		}
+	}
+	go reader()
+	for _, tc := range cases {
+		w.Write(tc.msg)
+	}
 }

@@ -5,8 +5,9 @@ This Go package makes it possible to send log records from Go logging libraries
 to a [cutelog](https://github.com/busimus/cutelog) instance without having to
 manually manage a socket connection.
 
-Function NewWriter returns a struct that implements io.Writer interface so it
-can be used as output by libraries like zerolog, zap, onelog, logrus, etc.
+Function [NewWriter](https://godoc.org/github.com/busimus/gocutelog#NewWriter) 
+returns a struct that implements io.Writer interface so it can be used as 
+output by libraries like zerolog, zap, onelog, logrus, etc.
 
 Just like cutelog itself, this package is meant to be used only during
 development, so performance or reliability are not the focus here.
